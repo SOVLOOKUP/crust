@@ -1,10 +1,8 @@
 import { typesBundleForPolkadot, typesAlias } from "@crustio/type-definitions";
 import { Keyring } from "@polkadot/keyring";
-import type { UnixFSEntry } from "ipfs-unixfs-exporter";
 import { KeyringPair } from "@polkadot/keyring/types";
 import { cryptoWaitReady } from "@polkadot/util-crypto";
 import { ApiPromise, WsProvider } from "@polkadot/api";
-await cryptoWaitReady();
 
 const mainNet = "wss://rpc.crust.network";
 const testNet = "wss://rpc-rocky.crust.network";
@@ -39,12 +37,16 @@ export interface CrustOpt {
   net?: "main" | "test";
 }
 
+export const newCrust = async (parameters: CrustOpt) => {
+  await cryptoWaitReady();
+  return new Crust(parameters);
+};
+
 export class Crust {
   #api: ApiPromise;
   #krp: KeyringPair;
   #provider: WsProvider;
   constructor(parameters: CrustOpt) {
-    parameters = parameters ?? {};
     parameters.net = parameters.net ?? "main";
     this.#krp = new Keyring({ type: "sr25519" }).addFromUri(parameters.seeds);
 
@@ -59,24 +61,26 @@ export class Crust {
     });
   }
 
-  placeStorageOrder = async (
-    entry: Pick<UnixFSEntry, "cid" | "size" | "type">,
-    tips = 0
-  ) => {
+  placeStorageOrder = async (entry: {
+    cid: string;
+    size: bigint;
+    type: "directory" | "others";
+    tips?: bigint;
+  }) => {
     await this.#api.isReadyOrError;
-    const stored = await this.getOrderStatus(entry.cid.toV1().toString());
+    const stored = await this.getOrderStatus(entry.cid);
 
     if (stored !== null) {
       throw new Error("File has already been stored");
     }
 
-    const fileCid = entry.cid.toV1().toString();
+    const fileCid = entry.cid;
     const fileSize = entry.size;
     const memo = entry.type === "directory" ? "folder" : "";
     const tx = this.#api.tx.market.placeStorageOrder(
       fileCid,
       fileSize,
-      tips,
+      entry.tips ?? 0,
       memo
     );
 
