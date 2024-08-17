@@ -1,7 +1,10 @@
 {
   "name": "crust-api",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "scripts": {
     "build": "tsup index.ts --format esm,cjs --dts"
   },

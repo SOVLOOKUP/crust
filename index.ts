@@ -61,6 +61,8 @@ export class Crust {
     });
   }
 
+  isReadyOrError = async () => await this.#api.isReadyOrError;
+  
   placeStorageOrder = async (entry: {
     cid: string;
     size: bigint;
