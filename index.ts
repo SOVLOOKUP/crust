@@ -70,11 +70,6 @@ export class Crust {
     tips?: bigint;
   }) => {
     await this.#api.isReadyOrError;
-    const stored = await this.getOrderStatus(entry.cid);
-
-    if (stored !== null) {
-      throw new Error("File has already been stored");
-    }
 
     const fileCid = entry.cid;
     const fileSize = entry.size;
