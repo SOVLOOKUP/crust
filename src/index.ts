@@ -42,6 +42,11 @@ export const newCrust = async (parameters: CrustOpt) => {
   return new Crust(parameters);
 };
 
+export const newCrustNoSeed = async (parameters: Omit<CrustOpt, "seeds">) => {
+  await cryptoWaitReady();
+  return new CrustNoSeed(parameters);
+};
+
 export class Crust {
   #api: ApiPromise;
   #krp: KeyringPair;
@@ -62,14 +67,14 @@ export class Crust {
   }
 
   isReadyOrError = async () => await this.#api.isReadyOrError;
-  
+
   placeStorageOrder = async (entry: {
     cid: string;
     size: bigint;
     type: "directory" | "others";
     tips?: bigint;
   }) => {
-    await this.#api.isReadyOrError;
+    await this.isReadyOrError();
 
     const fileCid = entry.cid;
     const fileSize = entry.size;
@@ -108,7 +113,8 @@ export class Crust {
     fileCid: string,
     amount: number
   ): Promise<StoredResource> => {
-    await this.#api.isReadyOrError;
+    await this.isReadyOrError();
+
     const tx = this.#api.tx.market.addPrepaid(fileCid, amount);
 
     return new Promise((resolve, reject) => {
@@ -125,8 +131,113 @@ export class Crust {
   };
 
   getOrderStatus = async (fileCid: string): Promise<OrderStatus | null> => {
-    await this.#api.isReadyOrError;
+    await this.isReadyOrError();
     const res = await this.#api.query.market.filesV2(fileCid);
     return res.toHuman() as unknown as OrderStatus | null;
   };
 }
+
+export class CrustNoSeed {
+  #api: ApiPromise;
+  #provider: WsProvider;
+  constructor(parameters?: Omit<CrustOpt, "seeds">) {
+    parameters = parameters ?? {}
+    parameters.net = parameters.net ?? "main";
+
+    this.#provider = new WsProvider(
+      parameters.net === "main" ? mainNet : testNet
+    );
+
+    this.#api = new ApiPromise({
+      provider: this.#provider,
+      typesBundle: typesBundleForPolkadot,
+      typesAlias,
+    });
+  }
+
+  isReadyOrError = async () => await this.#api.isReadyOrError;
+
+  placeStorageOrderRaw = async (extrinsic: Uint8Array) => {
+    await this.isReadyOrError();
+    const tx = this.#api.tx(extrinsic);
+
+    return new Promise<StoredResource>((resolve, reject) => {
+      if (tx.method.method === "placeStorageOrder") {
+        tx.send(async (result) => {
+          const { isInBlock, events, txHash } = result;
+
+          if (isInBlock) {
+            let cid: string;
+            events.forEach(({ event: { method, data } }) => {
+              if (method === "FileSuccess") {
+                // get file cid
+                cid = data.pop()?.toHuman() as string;
+              }
+              if (method === "ExtrinsicSuccess") {
+                // place storage success
+                resolve({ hash: txHash.toHex(), cid });
+              }
+            });
+          }
+        }).catch((e) => {
+          reject(e);
+        });
+      } else {
+        reject(new Error("Only Support placeStorageOrder method"));
+      }
+    });
+  };
+
+  addPrepaidAmountRaw = async (extrinsic: Uint8Array) => {
+    await this.isReadyOrError();
+    const tx = this.#api.tx(extrinsic);
+    const cid = tx.method.toHuman()["args"]?.cid;
+
+    return new Promise<StoredResource>((resolve, reject) => {
+      if (typeof cid !== "string") {
+        reject(new Error("Not Valid Cid"));
+      } else {
+        if (tx.method.method === "addPrepaid") {
+          tx.send(async (result) => {
+            if (result.isInBlock) {
+              // @ts-ignore
+              const { InBlock } = result.status.toHuman();
+              resolve({ hash: InBlock, cid });
+            }
+          }).catch((e) => {
+            reject(e);
+          });
+        } else {
+          reject(new Error("Only Support addPrepaid method"));
+        }
+      }
+    });
+  };
+
+  getOrderStatus = async (fileCid: string): Promise<OrderStatus | null> => {
+    await this.isReadyOrError();
+    const res = await this.#api.query.market.filesV2(fileCid);
+    return res.toHuman() as unknown as OrderStatus | null;
+  };
+}
+
+
+let crust: CrustNoSeed;
+
+const validReady = async (parameters: Omit<CrustOpt, "seeds">) => {
+  try {
+    await crust.isReadyOrError();
+    return crust;
+  } catch (error) {
+    crust = await newCrustNoSeed(parameters);
+    return await validReady(parameters);
+  }
+};
+
+export const useCrustNoSeed = async (parameters: Omit<CrustOpt, "seeds">) => {
+  if (!crust) {
+    crust = await newCrustNoSeed(parameters);
+  }
+
+  return await validReady(parameters);
+};
