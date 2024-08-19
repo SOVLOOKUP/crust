@@ -157,6 +157,37 @@ export class CrustNoSeed {
 
   isReadyOrError = async () => await this.#api.isReadyOrError;
 
+  getPlaceStorageOrderRaw = async (entry: {
+    cid: string;
+    type: "directory" | "others";
+    size?: bigint;
+    tips?: bigint;
+  }) => {
+    await this.isReadyOrError();
+
+    const fileCid = entry.cid;
+    const fileSize = entry.size;
+    const memo = entry.type === "directory" ? "folder" : "";
+
+    const tx = this.#api.tx.market.placeStorageOrder(
+      fileCid,
+      fileSize ?? 0,
+      entry.tips ?? 0,
+      memo
+    );
+
+    return tx.toHex()
+  };
+
+  getAddPrepaidAmountRaw = async (
+    fileCid: string,
+    amount: number
+  ) => {
+    await this.isReadyOrError();
+    const tx = this.#api.tx.market.addPrepaid(fileCid, amount);
+    return tx.toHex()
+  };
+
   placeStorageOrderRaw = async (extrinsic: Uint8Array | string) => {
     await this.isReadyOrError();
     const tx = this.#api.tx(extrinsic);
