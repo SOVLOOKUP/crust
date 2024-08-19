@@ -157,7 +157,7 @@ export class CrustNoSeed {
 
   isReadyOrError = async () => await this.#api.isReadyOrError;
 
-  placeStorageOrderRaw = async (extrinsic: Uint8Array) => {
+  placeStorageOrderRaw = async (extrinsic: Uint8Array | string) => {
     await this.isReadyOrError();
     const tx = this.#api.tx(extrinsic);
 
@@ -188,7 +188,7 @@ export class CrustNoSeed {
     });
   };
 
-  addPrepaidAmountRaw = async (extrinsic: Uint8Array) => {
+  addPrepaidAmountRaw = async (extrinsic: Uint8Array | string) => {
     await this.isReadyOrError();
     const tx = this.#api.tx(extrinsic);
     const cid = tx.method.toHuman()["args"]?.cid;
