@@ -37,111 +37,11 @@ export interface CrustOpt {
   net?: "main" | "test";
 }
 
-export const newCrust = async (parameters: CrustOpt) => {
-  await cryptoWaitReady();
-  return new Crust(parameters);
-};
-
-export const newCrustNoSeed = async (parameters?: Omit<CrustOpt, "seeds">) => {
-  await cryptoWaitReady();
-  return new CrustNoSeed(parameters);
-};
-
-export class Crust {
-  #api: ApiPromise;
-  #krp: KeyringPair;
-  #provider: WsProvider;
-  constructor(parameters: CrustOpt) {
-    parameters.net = parameters.net ?? "main";
-    this.#krp = new Keyring({ type: "sr25519" }).addFromUri(parameters.seeds);
-
-    this.#provider = new WsProvider(
-      parameters.net === "main" ? mainNet : testNet
-    );
-
-    this.#api = new ApiPromise({
-      provider: this.#provider,
-      typesBundle: typesBundleForPolkadot,
-      typesAlias,
-    });
-  }
-
-  isReadyOrError = async () => await this.#api.isReadyOrError;
-
-  placeStorageOrder = async (entry: {
-    cid: string;
-    size: bigint;
-    type: "directory" | "others";
-    tips?: bigint;
-  }) => {
-    await this.isReadyOrError();
-
-    const fileCid = entry.cid;
-    const fileSize = entry.size;
-    const memo = entry.type === "directory" ? "folder" : "";
-    const tx = this.#api.tx.market.placeStorageOrder(
-      fileCid,
-      fileSize,
-      entry.tips ?? 0,
-      memo
-    );
-
-    return new Promise<StoredResource>((resolve, reject) => {
-      tx.signAndSend(this.#krp, async (result) => {
-        const { isInBlock, events, txHash } = result;
-
-        if (isInBlock) {
-          let cid: string;
-          events.forEach(({ event: { method, data } }) => {
-            if (method === "FileSuccess") {
-              // get file cid
-              cid = data.pop()?.toHuman() as string;
-            }
-            if (method === "ExtrinsicSuccess") {
-              // place storage success
-              resolve({ hash: txHash.toHex(), cid });
-            }
-          });
-        }
-      }).catch((e) => {
-        reject(e);
-      });
-    });
-  };
-
-  addPrepaidAmount = async (
-    fileCid: string,
-    amount: number
-  ): Promise<StoredResource> => {
-    await this.isReadyOrError();
-
-    const tx = this.#api.tx.market.addPrepaid(fileCid, amount);
-
-    return new Promise((resolve, reject) => {
-      tx.signAndSend(this.#krp, async (result) => {
-        if (result.isInBlock) {
-          // @ts-ignore
-          const { InBlock } = result.status.toHuman();
-          resolve({ hash: InBlock, cid: fileCid });
-        }
-      }).catch((e) => {
-        reject(e);
-      });
-    });
-  };
-
-  getOrderStatus = async (fileCid: string): Promise<OrderStatus | null> => {
-    await this.isReadyOrError();
-    const res = await this.#api.query.market.filesV2(fileCid);
-    return res.toHuman() as unknown as OrderStatus | null;
-  };
-}
-
 export class CrustNoSeed {
   #api: ApiPromise;
   #provider: WsProvider;
   constructor(parameters?: Omit<CrustOpt, "seeds">) {
-    parameters = parameters ?? {}
+    parameters = parameters ?? {};
     parameters.net = parameters.net ?? "main";
 
     this.#provider = new WsProvider(
@@ -156,6 +56,8 @@ export class CrustNoSeed {
   }
 
   isReadyOrError = async () => await this.#api.isReadyOrError;
+  disconnect = async () => await this.#api.disconnect();
+  getTx = (extrinsic: Uint8Array | string) => this.#api.tx(extrinsic);
 
   getPlaceStorageOrderRaw = async (entry: {
     cid: string;
@@ -176,16 +78,13 @@ export class CrustNoSeed {
       memo
     );
 
-    return tx.toHex()
+    return tx.toHex();
   };
 
-  getAddPrepaidAmountRaw = async (
-    fileCid: string,
-    amount: number
-  ) => {
+  getAddPrepaidAmountRaw = async (fileCid: string, amount: number) => {
     await this.isReadyOrError();
     const tx = this.#api.tx.market.addPrepaid(fileCid, amount);
-    return tx.toHex()
+    return tx.toHex();
   };
 
   placeStorageOrderRaw = async (extrinsic: Uint8Array | string) => {
@@ -252,23 +151,54 @@ export class CrustNoSeed {
   };
 }
 
+export class Crust extends CrustNoSeed {
+  #krp: KeyringPair;
+  constructor(parameters: CrustOpt) {
+    super(parameters);
+    this.#krp = new Keyring({ type: "sr25519" }).addFromUri(parameters.seeds);
+  }
 
-let crust: CrustNoSeed;
+  placeStorageOrder = async (entry: {
+    cid: string;
+    size: bigint;
+    type: "directory" | "others";
+    tips?: bigint;
+  }): Promise<StoredResource> => {
+    const ex = await this.getPlaceStorageOrderRaw(entry);
+    const tx = (await this.getTx(ex).signAsync(this.#krp)).toHex();
+    return await this.placeStorageOrderRaw(tx);
+  };
 
-const validReady = async (parameters?: Omit<CrustOpt, "seeds">) => {
+  addPrepaidAmount = async (
+    fileCid: string,
+    amount: number
+  ): Promise<StoredResource> => {
+    const ex = await this.getAddPrepaidAmountRaw(fileCid, amount);
+    const tx = (await this.getTx(ex).signAsync(this.#krp)).toHex();
+    return await this.addPrepaidAmountRaw(tx);
+  };
+}
+
+let crust;
+
+const validReady = async <T extends CrustNoSeed>(newCrust: () => T) => {
   try {
     await crust.isReadyOrError();
     return crust;
   } catch (error) {
-    crust = await newCrustNoSeed(parameters);
-    return await validReady(parameters);
+    crust = newCrust();
+    return await validReady(newCrust);
   }
 };
 
-export const useCrustNoSeed = async (parameters?: Omit<CrustOpt, "seeds">) => {
+export const useCrust = async <T extends CrustNoSeed>(
+  newCrust: () => T
+): Promise<T> => {
+  await cryptoWaitReady();
+
   if (!crust) {
-    crust = await newCrustNoSeed(parameters);
+    crust = newCrust();
   }
 
-  return await validReady(parameters);
+  return await validReady(newCrust);
 };

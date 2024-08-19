@@ -24,6 +24,9 @@ importers:
         specifier: ^13.0.2
         version: 13.0.2(@polkadot/util@13.0.2)
     devDependencies:
+      '@polkadot/types':
+        specifier: ^12.3.1
+        version: 12.3.1
       tsup:
         specifier: ^8.2.4
         version: 8.2.4(typescript@5.5.4)
