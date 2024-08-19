@@ -1,6 +1,6 @@
 {
   "name": "crust-api",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "type": "module",
   "types": "./dist/index.d.ts",
   "main": "./dist/index.cjs",
@@ -18,5 +18,8 @@
   "devDependencies": {
     "tsup": "^8.2.4",
     "typescript": "^5.5.4"
-  }
+  },
+  "files": [
+    "./dist/**/*"
+  ]
 }
