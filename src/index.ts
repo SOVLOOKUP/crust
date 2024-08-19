@@ -42,7 +42,7 @@ export const newCrust = async (parameters: CrustOpt) => {
   return new Crust(parameters);
 };
 
-export const newCrustNoSeed = async (parameters: Omit<CrustOpt, "seeds">) => {
+export const newCrustNoSeed = async (parameters?: Omit<CrustOpt, "seeds">) => {
   await cryptoWaitReady();
   return new CrustNoSeed(parameters);
 };
@@ -224,7 +224,7 @@ export class CrustNoSeed {
 
 let crust: CrustNoSeed;
 
-const validReady = async (parameters: Omit<CrustOpt, "seeds">) => {
+const validReady = async (parameters?: Omit<CrustOpt, "seeds">) => {
   try {
     await crust.isReadyOrError();
     return crust;
@@ -234,7 +234,7 @@ const validReady = async (parameters: Omit<CrustOpt, "seeds">) => {
   }
 };
 
-export const useCrustNoSeed = async (parameters: Omit<CrustOpt, "seeds">) => {
+export const useCrustNoSeed = async (parameters?: Omit<CrustOpt, "seeds">) => {
   if (!crust) {
     crust = await newCrustNoSeed(parameters);
   }
