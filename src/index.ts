@@ -157,6 +157,7 @@ export class CrustNoSeed {
   };
 }
 
+// todo 仅签名服务
 export class Crust extends CrustNoSeed {
   #krp: KeyringPair;
   constructor(parameters: CrustOpt) {
