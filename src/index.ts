@@ -39,17 +39,14 @@ export interface CrustOpt {
 
 export class CrustNoSeed {
   #api: ApiPromise;
-  #provider: WsProvider;
+  #net: string;
   constructor(parameters?: Omit<CrustOpt, "seeds">) {
     parameters = parameters ?? {};
     parameters.net = parameters.net ?? "main";
-
-    this.#provider = new WsProvider(
-      parameters.net === "main" ? mainNet : testNet
-    );
+    this.#net = parameters.net === "main" ? mainNet : testNet;
 
     this.#api = new ApiPromise({
-      provider: this.#provider,
+      provider: new WsProvider(this.#net),
       typesBundle: typesBundleForPolkadot,
       typesAlias,
     });
@@ -59,11 +56,11 @@ export class CrustNoSeed {
   disconnect = async () => await this.#api.disconnect();
   connect = async () => {
     this.#api = new ApiPromise({
-      provider: this.#provider,
+      provider: new WsProvider(this.#net),
       typesBundle: typesBundleForPolkadot,
       typesAlias,
-    })
-    await this.#api.isReadyOrError
+    });
+    await this.#api.isReadyOrError;
   };
   isConnected = () => this.#api.isConnected;
   getTx = (extrinsic: Uint8Array | string) => this.#api.tx(extrinsic);
