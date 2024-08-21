@@ -57,6 +57,8 @@ export class CrustNoSeed {
 
   isReadyOrError = async () => await this.#api.isReadyOrError;
   disconnect = async () => await this.#api.disconnect();
+  connect = async () => await this.#api.connect();
+  isConnected = () => this.#api.isConnected;
   getTx = (extrinsic: Uint8Array | string) => this.#api.tx(extrinsic);
 
   getPlaceStorageOrderRaw = async (entry: {
