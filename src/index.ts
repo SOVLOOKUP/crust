@@ -57,7 +57,14 @@ export class CrustNoSeed {
 
   isReadyOrError = async () => await this.#api.isReadyOrError;
   disconnect = async () => await this.#api.disconnect();
-  connect = async () => await this.#api.connect();
+  connect = async () => {
+    this.#api = new ApiPromise({
+      provider: this.#provider,
+      typesBundle: typesBundleForPolkadot,
+      typesAlias,
+    })
+    await this.#api.isReadyOrError
+  };
   isConnected = () => this.#api.isConnected;
   getTx = (extrinsic: Uint8Array | string) => this.#api.tx(extrinsic);
 
