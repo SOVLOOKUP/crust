@@ -6,7 +6,7 @@ import { ApiPromise, WsProvider } from "@polkadot/api";
 
 const mainNet = "wss://rpc.crust.network";
 const testNet = "wss://rpc-rocky.crust.network";
-const countDownSec = 60
+const countDownSec = 60;
 
 export interface StoredResource {
   hash: string;
@@ -56,14 +56,15 @@ export class CrustNoSeed {
     this.#setCountDown();
   }
 
-  #setCountDown = () => this.#countDown = setTimeout(this.disconnect, countDownSec * 1000);
+  #setCountDown = () =>
+    (this.#countDown = setTimeout(this.disconnect, countDownSec * 1000));
 
   isReadyOrError = async () => {
     if (!this.isConnected()) {
       await this.connect();
     }
     await this.#api.isReadyOrError;
-    clearTimeout(this.#countDown)
+    clearTimeout(this.#countDown);
     this.#setCountDown();
   };
 
@@ -221,7 +222,7 @@ export class Crust extends CrustNoSeed {
   };
 }
 
-export const getUseCrust = () => {
+export const getUseCrust = <T extends CrustNoSeed>(newCrust: () => T) => {
   let crust;
 
   const validReady = async <T extends CrustNoSeed>(newCrust: () => T) => {
@@ -234,9 +235,7 @@ export const getUseCrust = () => {
     }
   };
 
-  const useCrust = async <T extends CrustNoSeed>(
-    newCrust: () => T
-  ): Promise<T> => {
+  const useCrust = async <T extends CrustNoSeed>(): Promise<T> => {
     await cryptoWaitReady();
 
     if (!crust) {
