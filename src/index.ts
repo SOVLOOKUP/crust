@@ -223,13 +223,14 @@ export class Crust extends CrustNoSeed {
 }
 
 export const getUseCrust = <T extends CrustNoSeed>(newCrust: () => T) => {
-  let crust;
+  let crust: T;
 
   const validReady = async <T extends CrustNoSeed>(newCrust: () => T) => {
     try {
       await crust.isReadyOrError();
       return crust;
     } catch (error) {
+      // @ts-ignore
       crust = newCrust();
       return await validReady(newCrust);
     }
@@ -241,7 +242,7 @@ export const getUseCrust = <T extends CrustNoSeed>(newCrust: () => T) => {
     if (!crust) {
       crust = newCrust();
     }
-
+    // @ts-ignore
     return await validReady(newCrust);
   };
 
