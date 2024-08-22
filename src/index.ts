@@ -50,9 +50,16 @@ export class CrustNoSeed {
       typesBundle: typesBundleForPolkadot,
       typesAlias,
     });
+    // todo 自动断开链接/建立链接
   }
 
-  isReadyOrError = async () => await this.#api.isReadyOrError;
+  isReadyOrError = async () => {
+    if (!crust.isConnected()) {
+      await crust.connect();
+    }
+    await this.#api.isReadyOrError
+  };
+  
   disconnect = async () => await this.#api.disconnect();
   connect = async () => {
     this.#api = new ApiPromise({
@@ -157,13 +164,34 @@ export class CrustNoSeed {
   };
 }
 
-// todo 仅签名服务
 export class Crust extends CrustNoSeed {
   #krp: KeyringPair;
   constructor(parameters: CrustOpt) {
     super(parameters);
     this.#krp = new Keyring({ type: "sr25519" }).addFromUri(parameters.seeds);
   }
+
+  signPlaceStorageOrderEx = async (ex: string) => {
+    await this.isReadyOrError()
+    const tx = this.getTx(ex);
+    if (tx.method.method === "placeStorageOrder") {
+      const signedTx = await tx.signAsync(this.#krp);
+      return signedTx.toHex();
+    } else {
+      throw new Error("Method error")
+    }
+  };
+
+  signAddPrepaidAmountEx = async (ex: string) => {
+    await this.isReadyOrError()
+    const tx = this.getTx(ex);
+    if (tx.method.method === "addPrepaid") {
+      const signedTx = await tx.signAsync(this.#krp);
+      return signedTx.toHex();
+    } else {
+      throw new Error("Method error")
+    }
+  };
 
   placeStorageOrder = async (entry: {
     cid: string;
