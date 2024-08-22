@@ -6,6 +6,7 @@ import { ApiPromise, WsProvider } from "@polkadot/api";
 
 const mainNet = "wss://rpc.crust.network";
 const testNet = "wss://rpc-rocky.crust.network";
+const countDownSec = 60
 
 export interface StoredResource {
   hash: string;
@@ -40,6 +41,7 @@ export interface CrustOpt {
 export class CrustNoSeed {
   #api: ApiPromise;
   #net: string;
+  #countDown: NodeJS.Timeout;
   constructor(parameters?: Omit<CrustOpt, "seeds">) {
     parameters = parameters ?? {};
     parameters.net = parameters.net ?? "main";
@@ -50,16 +52,21 @@ export class CrustNoSeed {
       typesBundle: typesBundleForPolkadot,
       typesAlias,
     });
-    // todo 自动断开链接/建立链接
+    // 1分钟无活动则自动断开链接链接
+    this.#setCountDown();
   }
 
+  #setCountDown = () => this.#countDown = setTimeout(this.disconnect, countDownSec * 1000);
+
   isReadyOrError = async () => {
-    if (!crust.isConnected()) {
-      await crust.connect();
+    if (!this.isConnected()) {
+      await this.connect();
     }
-    await this.#api.isReadyOrError
+    await this.#api.isReadyOrError;
+    clearTimeout(this.#countDown)
+    this.#setCountDown();
   };
-  
+
   disconnect = async () => await this.#api.disconnect();
   connect = async () => {
     this.#api = new ApiPromise({
@@ -172,24 +179,24 @@ export class Crust extends CrustNoSeed {
   }
 
   signPlaceStorageOrderEx = async (ex: string) => {
-    await this.isReadyOrError()
+    await this.isReadyOrError();
     const tx = this.getTx(ex);
     if (tx.method.method === "placeStorageOrder") {
       const signedTx = await tx.signAsync(this.#krp);
       return signedTx.toHex();
     } else {
-      throw new Error("Method error")
+      throw new Error("Method error");
     }
   };
 
   signAddPrepaidAmountEx = async (ex: string) => {
-    await this.isReadyOrError()
+    await this.isReadyOrError();
     const tx = this.getTx(ex);
     if (tx.method.method === "addPrepaid") {
       const signedTx = await tx.signAsync(this.#krp);
       return signedTx.toHex();
     } else {
-      throw new Error("Method error")
+      throw new Error("Method error");
     }
   };
 
@@ -214,26 +221,30 @@ export class Crust extends CrustNoSeed {
   };
 }
 
-let crust;
+export const getUseCrust = () => {
+  let crust;
 
-const validReady = async <T extends CrustNoSeed>(newCrust: () => T) => {
-  try {
-    await crust.isReadyOrError();
-    return crust;
-  } catch (error) {
-    crust = newCrust();
+  const validReady = async <T extends CrustNoSeed>(newCrust: () => T) => {
+    try {
+      await crust.isReadyOrError();
+      return crust;
+    } catch (error) {
+      crust = newCrust();
+      return await validReady(newCrust);
+    }
+  };
+
+  const useCrust = async <T extends CrustNoSeed>(
+    newCrust: () => T
+  ): Promise<T> => {
+    await cryptoWaitReady();
+
+    if (!crust) {
+      crust = newCrust();
+    }
+
     return await validReady(newCrust);
-  }
-};
+  };
 
-export const useCrust = async <T extends CrustNoSeed>(
-  newCrust: () => T
-): Promise<T> => {
-  await cryptoWaitReady();
-
-  if (!crust) {
-    crust = newCrust();
-  }
-
-  return await validReady(newCrust);
+  return useCrust;
 };
